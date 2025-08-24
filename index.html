@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Decathlon Inventory • Offline Demo</title>
+  <style>
+    :root { --bg1:#f7fbff; --bg2:#eef2ff; --card:#ffffff; --text:#1f2937; --muted:#6b7280; --blue:#2563eb; --blue-600:#1d4ed8; --green:#059669; --amber:#b45309; --red:#dc2626; --border:#e5e7eb; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:linear-gradient(135deg,var(--bg1),var(--bg2));color:var(--text)}
+    .container{max-width:1080px;margin:0 auto;padding:16px}
+    .header{position:sticky;top:0;backdrop-filter:saturate(1.2) blur(8px);background-color:rgba(255,255,255,.7);border-bottom:1px solid var(--border);z-index:20}
+    .row{display:flex;gap:12px;align-items:center}
+    .space{flex:1}
+    .brand{display:flex;gap:8px;align-items:center}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px}
+    .btn{border:1px solid var(--border);background:#fff;border-radius:16px;padding:10px 14px;cursor:pointer;font-weight:600}
+    .btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+    .btn.primary:hover{background:var(--blue-600)}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .input{width:100%;border:1px solid var(--border);border-radius:16px;padding:10px 14px;outline:0}
+    .muted{color:var(--muted);font-size:14px}
+    .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;font-size:12px;padding:4px 8px}
+    .badge.green{border-color:#bbf7d0;background:#ecfdf5;color:var(--green)}
+    .badge.amber{border-color:#fde68a;background:#fffbeb;color:var(--amber)}
+    .badge.red{border-color:#fecaca;background:#fef2f2;color:var(--red)}
+    .grid{display:grid;gap:12px}
+    @media(min-width:720px){.grid.cols-3{grid-template-columns:repeat(3,1fr)}.grid.cols-2{grid-template-columns:repeat(2,1fr)}}
+    .storeCard{display:flex;flex-direction:column;gap:10px;height:100%}
+    .chip{border:1px solid var(--border);border-radius:999px;padding:6px 10px;background:#fff;font-size:12px}
+    .footer{border-top:1px solid var(--border);background:rgba(255,255,255,.7)}
+    /* modal */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+    .overlay.show{display:flex}
+    .modal{max-width:560px;width:100%}
+    .field{display:flex;flex-direction:column;gap:6px}
+    .list{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+    .suggest{padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:#fff;cursor:pointer}
+    .code{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace}
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="container row" style="padding:12px 16px">
+      <div class="brand">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="14" rx="2"/><path d="M16 21H8"/><path d="M12 17v4"/></svg>
+        <strong>Decathlon Inventory (Prototype)</strong>
+      </div>
+      <span class="space"></span>
+      <button id="navHome" class="btn" title="Home">Home</button>
+      <button id="navRes" class="btn" title="My Reservations">My Reservations (<span id="resCount">0</span>)</button>
+    </div>
+  </header>
+
+  <main class="container" id="top">
+    <!-- Search / Hero -->
+    <section class="card" style="padding:20px">
+      <div class="row" style="align-items:stretch;flex-wrap:wrap;gap:12px">
+        <div class="row space">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input id="q" class="input" placeholder="Search product (e.g., KIPSTA Football Shoes)" />
+          <button id="check" class="btn">Check Availability</button>
+        </div>
+        <div class="row" style="gap:8px">
+          <label class="row" style="gap:6px;cursor:pointer">
+            <input id="useLoc" type="checkbox" checked />
+            <span class="muted">Use current location</span>
+          </label>
+          <button id="refresh" class="btn">Refresh</button>
+        </div>
+      </div>
+      <div id="suggestions" class="list"></div>
+    </section>
+
+    <!-- Intro / Results -->
+    <section id="intro" class="card" style="margin-top:16px; text-align:center">
+      <p class="muted">Search for a product to view live availability across nearby stores.</p>
+      <p class="muted" style="display:flex;justify-content:center;gap:6px;align-items:center">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 12-9 12S3 17 3 10a9 9 0 1 1 18 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+        <span id="locMsg">Using your current location for nearest stores</span>
+      </p>
+    </section>
+
+    <section id="results" style="display:none; margin-top:16px">
+      <div class="row card" style="gap:8px;align-items:center">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v14"/><rect x="6" y="14" width="12" height="8" rx="2"/><path d="M6 6h12"/><path d="M6 10h12"/></svg>
+        <h2 id="prodName" style="margin:0;font-size:18px"></h2>
+        <span id="sku" class="badge">SKU</span>
+        <span class="space"></span>
+        <span id="updateNote" class="muted" style="display:none">Updating stock…</span>
+      </div>
+      <div id="storeGrid" class="grid cols-3" style="margin-top:12px"></div>
+    </section>
+
+    <!-- Reservations -->
+    <section style="margin-top:24px">
+      <h3 class="row" style="gap:8px"><span class="badge">My Reservations</span></h3>
+      <div id="resList" class="grid cols-2"></div>
+      <div id="resEmpty" class="card muted" style="margin-top:8px">No reservations yet. Reserve from a store to see it here.</div>
+    </section>
+  </main>
+
+  <!-- Modal -->
+  <div id="overlay" class="overlay">
+    <div class="modal card">
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <div>
+          <h4 style="margin:.2rem 0">Reserve Item</h4>
+          <div class="muted" id="modalSub"></div>
+        </div>
+        <button id="closeModal" class="btn" title="Close">✕</button>
+      </div>
+      <form id="reserveForm" style="margin-top:10px;display:grid;gap:10px">
+        <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px">
+          <div class="field"><label class="muted">Your Name</label><input class="input" name="name" required placeholder="e.g., Abhiram"></div>
+          <div class="field"><label class="muted">Phone</label><input class="input" name="phone" pattern="[0-9]{10}" required placeholder="10-digit"></div>
+          <div class="field" style="grid-column:1/-1"><label class="muted">Email (optional)</label><input class="input" name="email" type="email" placeholder="you@email.com"></div>
+          <div class="field" style="grid-column:1/-1"><label class="muted">Pickup Window</label>
+            <select class="input" name="pickup">
+              <option>Within 24 hours</option>
+              <option>Tomorrow (10am–7pm)</option>
+              <option>Weekend Pickup</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" style="gap:16px">
+          <label class="row muted" style="gap:6px"><input type="checkbox" name="notifySms" checked> SMS updates</label>
+          <label class="row muted" style="gap:6px"><input type="checkbox" name="notifyEmail"> Email updates</label>
+        </div>
+        <div class="row" style="justify-content:flex-end;gap:8px">
+          <button type="button" class="btn" id="cancelRes">Cancel</button>
+          <button class="btn primary" type="submit">Confirm Reservation</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container row" style="padding:16px;justify-content:space-between">
+      <div class="row muted" style="gap:6px">✔ Demo prototype • No real orders are placed</div>
+      <div class="muted">© 2025 Decathlon (Prototype)</div>
+    </div>
+  </footer>
+
+  <script>
+    // ---- Mock Data ----
+    const STORES = [
+      { id: 'hyd', name: 'Decathlon Hyderabad', area: 'Kukatpally', distanceKm: 4.1 },
+      { id: 'gb', name: 'Decathlon Gachibowli', area: 'Gachibowli', distanceKm: 8.7 },
+      { id: 'sec', name: 'Decathlon Secunderabad', area: 'Secunderabad', distanceKm: 12.3 },
+    ];
+
+    const PRODUCTS = {
+      'KIPSTA Football Shoes': { sku: 'KIP-FTB-001', stock: { hyd: 12, gb: 3, sec: 0 } },
+      'DOMYOS Yoga Mat': { sku: 'DOM-YGM-210', stock: { hyd: 2, gb: 6, sec: 1 } },
+      'QUECHUA 30L Backpack': { sku: 'QUE-BPK-30L', stock: { hyd: 0, gb: 0, sec: 7 } },
+    };
+
+    // ---- State ----
+    let selectedProduct = null;
+    const reservations = [];
+
+    // ---- Elements ----
+    const q = document.getElementById('q');
+    const checkBtn = document.getElementById('check');
+    const refreshBtn = document.getElementById('refresh');
+    const useLoc = document.getElementById('useLoc');
+    const intro = document.getElementById('intro');
+    const results = document.getElementById('results');
+    const prodName = document.getElementById('prodName');
+    const sku = document.getElementById('sku');
+    const storeGrid = document.getElementById('storeGrid');
+    const updateNote = document.getElementById('updateNote');
+    const suggestions = document.getElementById('suggestions');
+    const resCount = document.getElementById('resCount');
+    const resList = document.getElementById('resList');
+    const resEmpty = document.getElementById('resEmpty');
+    const locMsg = document.getElementById('locMsg');
+
+    // Modal
+    const overlay = document.getElementById('overlay');
+    const closeModal = document.getElementById('closeModal');
+    const cancelRes = document.getElementById('cancelRes');
+    const reserveForm = document.getElementById('reserveForm');
+    const modalSub = document.getElementById('modalSub');
+
+    // ---- Helpers ----
+    function statusFromQty(qty){
+      if(qty <= 0) return { label: 'Out of Stock', cls: 'badge red' };
+      if(qty <= 5) return { label: 'Few left', cls: 'badge amber' };
+      return { label: 'Available', cls: 'badge green' };
+    }
+
+    function renderSuggestions(){
+      const v = q.value.trim().toLowerCase();
+      suggestions.innerHTML = '';
+      if(!v) return;
+      Object.keys(PRODUCTS)
+        .filter(n => n.toLowerCase().includes(v))
+        .slice(0,5)
+        .forEach(name => {
+          const b = document.createElement('button');
+          b.className = 'suggest';
+          b.textContent = name;
+          b.onclick = () => { q.value = name; doSearch(name); };
+          suggestions.appendChild(b);
+        });
+    }
+
+    function doSearch(name){
+      const n = name || q.value.trim();
+      const p = PRODUCTS[n];
+      if(!p) return;
+      selectedProduct = { name: n, ...p };
+      prodName.textContent = n;
+      sku.textContent = 'SKU ' + p.sku;
+      intro.style.display = 'none';
+      results.style.display = '';
+      renderStores();
+    }
+
+    function renderStores(){
+      storeGrid.innerHTML = '';
+      STORES.forEach(s => {
+        const qty = selectedProduct.stock[s.id] || 0;
+        const st = statusFromQty(qty);
+        const card = document.createElement('div');
+        card.className = 'card storeCard';
+        card.innerHTML = `
+          <div class="row" style="justify-content:space-between;align-items:flex-start">
+            <div>
+              <div style="font-weight:700">${s.name}</div>
+              <div class="muted">${s.area} • ${s.distanceKm} km</div>
+            </div>
+            <span class="${st.cls}">${st.label}</span>
+          </div>
+          <div class="muted">Inventory: <strong>${qty}</strong></div>
+          <div class="row" style="justify-content:space-between; margin-top:auto">
+            <div class="muted">📍 Get directions</div>
+            <button class="btn primary" ${qty<=0?'disabled':''}>Reserve</button>
+          </div>`;
+        const btn = card.querySelector('button');
+        btn.onclick = () => openReserve(s);
+        storeGrid.appendChild(card);
+      });
+    }
+
+    function openReserve(store){
+      modalSub.textContent = \`\${selectedProduct.name} at \${store.name}\`;
+      overlay.classList.add('show');
+      reserveForm.dataset.store = store.name;
+    }
+
+    function closeReserve(){ overlay.classList.remove('show'); }
+
+    function addReservation(payload){
+      const code = Math.random().toString(36).slice(2,8).toUpperCase();
+      const when = new Date().toLocaleString();
+      const entry = { id: code, when, ...payload };
+      reservations.unshift(entry);
+      resCount.textContent = reservations.length;
+      renderReservations();
+    }
+
+    function renderReservations(){
+      resList.innerHTML = '';
+      if(reservations.length === 0){ resEmpty.style.display = ''; return; }
+      resEmpty.style.display = 'none';
+      reservations.forEach(r => {
+        const c = document.createElement('div');
+        c.className = 'card';
+        c.innerHTML = \`
+          <div style="font-weight:700">\${r.productName}</div>
+          <div class="muted">\${r.storeName}</div>
+          <div class="muted">Pickup window: \${r.pickup}</div>
+          <div class="muted">When: \${r.when}</div>
+          <div class="muted">Code: <span class="code">\${r.id}</span></div>
+        \`;
+        resList.appendChild(c);
+      });
+    }
+
+    // ---- Events ----
+    q.addEventListener('input', renderSuggestions);
+    q.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ doSearch(); }});
+    checkBtn.onclick = ()=> doSearch();
+    refreshBtn.onclick = ()=>{
+      updateNote.style.display = '';
+      setTimeout(()=>{ updateNote.style.display='none'; }, 700);
+    };
+    useLoc.onchange = ()=>{ locMsg.textContent = useLoc.checked ? 'Using your current location for nearest stores' : 'Showing all Hyderabad stores'; };
+
+    document.getElementById('navHome').onclick = ()=>{ window.scrollTo({top:0,behavior:'smooth'}); };
+    document.getElementById('navRes').onclick = ()=>{ document.getElementById('resList').scrollIntoView({behavior:'smooth'}); };
+
+    closeModal.onclick = closeReserve;
+    cancelRes.onclick = closeReserve;
+
+    reserveForm.onsubmit = (e)=>{
+      e.preventDefault();
+      const data = new FormData(reserveForm);
+      addReservation({
+        productName: selectedProduct.name,
+        storeName: reserveForm.dataset.store,
+        pickup: data.get('pickup'),
+        name: data.get('name'),
+        phone: data.get('phone'),
+        email: data.get('email'),
+        notifySms: !!data.get('notifySms'),
+        notifyEmail: !!data.get('notifyEmail')
+      });
+      reserveForm.reset();
+      closeReserve();
+    };
+
+    // Preload demo term for quick presentation
+    q.value = 'KIPSTA Football Shoes';
+    renderSuggestions();
+  </script>
+</body>
+</html>
