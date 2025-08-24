@@ -246,7 +246,7 @@
     }
 
     function openReserve(store){
-      modalSub.textContent = \`\${selectedProduct.name} at \${store.name}\`;
+      modalSub.textContent = `${selectedProduct.name} at ${store.name}`;
       overlay.classList.add('show');
       reserveForm.dataset.store = store.name;
     }
@@ -269,13 +269,13 @@
       reservations.forEach(r => {
         const c = document.createElement('div');
         c.className = 'card';
-        c.innerHTML = \`
-          <div style="font-weight:700">\${r.productName}</div>
-          <div class="muted">\${r.storeName}</div>
-          <div class="muted">Pickup window: \${r.pickup}</div>
-          <div class="muted">When: \${r.when}</div>
-          <div class="muted">Code: <span class="code">\${r.id}</span></div>
-        \`;
+        c.innerHTML = `
+          <div style="font-weight:700">${r.productName}</div>
+          <div class="muted">${r.storeName}</div>
+          <div class="muted">Pickup window: ${r.pickup}</div>
+          <div class="muted">When: ${r.when}</div>
+          <div class="muted">Code: <span class="code">${r.id}</span></div>
+        `;
         resList.appendChild(c);
       });
     }
